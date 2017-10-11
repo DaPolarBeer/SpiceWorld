@@ -1,0 +1,250 @@
+﻿
+#region Scripts Topics
+#region Cardinality
+
+# We fixed the cardinality seam in PSV4
+$p = Get-Process -Name (Read-Host -Prompt Name)
+$p.GetType().fullname
+$p.Name
+$p[0].Name
+$p.Count
+
+
+#endregion
+
+
+#region Splatting
+
+New-SmbShare -Name Test1 -Path $env:temp -Description "this is a test of the new SMB cmdlet" -ReadAccess Everyone -FullAccess ntdev\jsnover -Verbose:$true
+Remove-SmbShare -Name test1 -Force
+
+$params = @{
+    Name        = "Test1"
+    Path        = $env:temp
+    Description = "this is a test of the new SMB cmdlet"
+    ReadAccess  = "Everyone"
+    FullAccess  = "ntdev\jsnover"
+    Verbose     = $true
+}
+New-SmbShare @params
+Get-SmbShare
+Get-SmbShare  |Out-GridView -PassThru |Remove-SmbShare -confirm
+
+
+#endregion
+
+#region HashTables
+
+$hash = @{a=1;b=2;c=3}
+#Notice that they don't come out the way you entered them
+$hash
+
+$hash + @{d=4; e=5; f=6} + @{g=7;h=8}
+
+#Look what happens now
+$hash = [ordered]@{a=1;b=2;c=3}
+$hash
+$hash + @{d=4; e=5; f=6} + @{g=7;h=8}
+
+#region ShowUI
+
+#endregion
+#endregion
+
+
+#region Formating
+gps *ss
+gps *ss |format-table -Property Name,workingset -AutoSize
+
+#No longer need to use -Autosize
+gps *ss |select name,workingset
+
+gps *ss|format-table -Property `
+    @{Label="ProcessName";Expression={$_.name};Width=30;Alignment="Center"},
+    @{Label="WS(MB)"; expression= {$_.workingset/1mb}} -AutoSize
+
+
+$Params = @{
+    Property = @(
+        @{
+            Label      = "ProcessName";
+            Expression = {$_.name};
+            Width      = 30;
+            Alignment  = "Center"
+         },
+        @{
+            Label      = "WS(MB)";
+            Expression = {[int]($_.workingset/1mb)}
+         }
+    )
+    autosize = $true
+}
+gps *ss|format-table @Params
+
+#endregion
+
+#endregion
+
+#endregion
+
+
+#region  Ad Hoc
+#endregion
+
+#region Scripts - $ARGS
+
+function test
+{
+    for ($i = 0; $i -lt $args.count; $i++)
+    {
+        "Arg [$i] = $($args[$i])"
+    }
+}
+
+test
+test a
+test a b c
+test a,b,c
+
+
+
+
+
+function test
+{
+    $i = 0
+    foreach ($a in $args)
+    {
+        "Arg [$i] = $($args[$i])"
+        $i++
+    }
+}
+test
+test a
+test a b c
+test a,b,c
+
+#endregion
+
+#region Advanced Functions
+
+#region Parameters
+Function Test-AdvancedFunction
+{
+param(
+$Computer,
+$User
+)
+    Write-Host -ForegroundColor RED "Computer: $computer`nUser:     $user"
+}
+Show-Command Test-AdvancedFunction
+
+
+#endregion
+
+
+
+
+#region Test Cases.
+<#
+param($a)
+[parameter()]
+[parameter(Mandatory=1)]
+[parameter()][Int]
+
+
+[parameter(position=)]
+
+
+[parameter(Mandatory=$FALSE,ParameterSetName="User")]
+[parameter(Mandatory=$true,ParameterSetName="Machine")]
+
+[parameter(mandatory=$true,HelpMessage="Enter the name of the  computer to act upon")]
+
+[alias("CN","MachineName","__Server","PSComputerName")]
+Get-Help Test-AdvancedFunction -parameter Computer
+
+[alias("CN","MachineName","__Server","PSComputerName")]
+[parameter(mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+# PROCESS{}
+@"
+Name,User
+Server1,user1
+Server2,user2
+Server3,user3
+"@ | convertfrom-csv |Test-AdvancedFunction
+
+
+# COUNT THEM (Begin/End)
+
+[CmdletBinding(SupportsShouldProcess=$true)]
+    if ($PSCmdlet.ShouldProcess("$computer / $user", "test"))
+
+
+[ValidateCount(2,3)]
+
+[ValidateLength(2,10)]
+
+[ValidatePattern("^A")]
+
+[ValidateSet("IIS1.microsoft.com", "SQL2.microsoft.com", "AD3.microsoft.com")]
+
+[ValidateScript({$_ -in (cat servers.txt)})]
+
+
+[Cmdletbinding()]
+DynamicParam
+{
+    if ($user -match "snover")
+    {
+        write-host -ForegroundColor Yellow "Adding a Dynamic Parameter"
+        $attributes = new-object System.Management.Automation.ParameterAttribute
+        $attributes.Mandatory = $TRUE
+        $attributeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+        $attributeCollection.Add($attributes)
+
+        $dynParam1 = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ExtraParameter", [bool], $attributeCollection)
+
+        $paramDictionary = new-object `
+            -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+        $paramDictionary.Add("ExtraParameter", $dynParam1)
+        return $paramDictionary
+    }
+}
+
+process {    Write-Host -ForegroundColor RED "Computer: $computer`nUser:     $user`nExtra = $($PSBoundParameters.ExtraParameter)" ;
+
+#>
+#endregion
+#endregion
+
+
+#region Modules
+function q {function Prompt {"TEST> "}; $host.EnterNestedPrompt()}
+psedit .\TEST.ps1
+
+. .\test.ps1
+copy-item test.ps1 test.psm1
+Import-module -verbose -force .\test.psm1
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+#Notice this doesn't work:
+$TextColor = "Yellow"
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+Get-Module
+$m = Get-Module -Name test
+ &$m{dir variable:}
+diff (dir variable:) (&$m{dir variable:}) -Property name
+&$m{$textcolor}
+&$m{$textcolor="Yellow"}
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+
+&$m{$script:textcolor="yellow"}
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+&$m{$script:formatstring="Hey [{1}], I can't believe how awesome PowerShell is on [{0}]"}
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+
+Test-AdvancedFunction -Computer Server1 -User SNOVER
+#endregion
+
+
+#EOF
